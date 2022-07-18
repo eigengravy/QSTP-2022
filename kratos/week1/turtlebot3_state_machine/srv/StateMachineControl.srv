@@ -1,0 +1,4 @@
+string state
+int32 dir
+---
+bool success
