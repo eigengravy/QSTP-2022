@@ -8,20 +8,73 @@ Original file is located at
 """
 
 import pandas as pd
+import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.preprocessing import MinMaxScaler
 
 df = pd.read_csv("/content/QSTP_LogReg.csv")
-
-y = df['Class'].values
-X = df.drop(['Class','Sample code number'],axis=1).values
-
+scaler=MinMaxScaler()
+df_scaled = pd.DataFrame(scaler.fit_transform(df), columns=df.columns)
+y = df_scaled['Class'].values
+X = df_scaled.drop(['Class','Sample code number'],axis=1).values
+df += np.ones(df.shape[:]) 
 train_X, test_X, train_y, test_y = train_test_split(X, y, test_size=0.2, random_state=0)
+
+# scikit model
 
 classifier = LogisticRegression()
 model = classifier.fit(train_X,train_y)
 prediction = model.predict(test_X)
+
+accuracy_score(test_y, prediction)
+
+confusion_matrix(test_y, prediction)
+
+# numpy model
+
+def sigmoid(x):
+  return float(1.0 / float((1.0 + np.exp(-1.0*x))))
+
+sigmoid_v = np.vectorize(sigmoid)
+
+class GradientDescentLogisticRegression():
+  def __init__(self, num_targets, num_features, learning_rate, epochs):
+    self.num_features = num_features
+    self.num_targets = num_targets 
+    self.learning_rate = learning_rate
+    self.epochs = epochs
+
+  def fit(self, X, y):
+    n=X.shape[0]
+    np.random.seed(0)
+    self.W = np.random.normal(size=(self.num_targets, self.num_features))
+
+    def cost_fn(_y, _y_hat):
+      error = (-_y*np.log(_y_hat)) - ((1-_y)*np.log(1-_y_hat))
+      cost=(1/n)*np.sum(error)
+      return cost,error
+
+    total_expected_error=float("inf")
+    for epoch in range(self.epochs):
+      y_hat = np.array([sigmoid_v(np.dot(self.W, X[i].reshape(-1, 1))) for i in range(n)]).squeeze()
+      cost, error = cost_fn(y.reshape(-1, 1),y_hat)
+      if (total_expected_error<cost):
+        return
+      total_expected_error = cost
+      
+      gradient = X.T.dot(error)/n
+      for (i,w) in enumerate(gradient):
+        self.W -= self.learning_rate * w[i]
+
+  def predict(self, X):
+    prediction = np.array([sigmoid_v(np.dot(self.W, X_i.reshape(-1, 1))) for X_i in X]).squeeze()
+    return np.array(list(map(lambda x: 1.0 if x>0.8 else 0.0, prediction)))
+
+classifier = GradientDescentLogisticRegression(1,9,0.00005,1000)
+classifier.fit(train_X, train_y)
+prediction = classifier.predict(test_X)
 
 accuracy_score(test_y, prediction)
 
