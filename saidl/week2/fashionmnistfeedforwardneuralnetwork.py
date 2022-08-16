@@ -17,51 +17,29 @@ import torch.nn.functional as F
 
 from torchvision import transforms
 
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import TensorDataset, DataLoader
 
 torch.manual_seed(0)
 
-path = "./content/fashion-mnist.csv"
-fashion_mnist_csv = pd.read_csv(path)
+from google.colab import drive
+drive.mount('/content/drive')
 
-class FashionMNISTDataset(Dataset):
-    def __init__(self, data, transform = None):
-        self.fashion_MNIST = list(data.values)
-        self.transform = transform
-        
-        label = []
-        image = []
-        
-        for i in self.fashion_MNIST:
-            label.append(i[0])
-            image.append(i[1:])
-        self.labels = np.asarray(label)
-        self.images = np.asarray(image)/255
+path = "drive/MyDrive/Colab Notebooks/fashion-mnist.csv"
+df = pd.read_csv(path)
 
-    def __getitem__(self, index):
-        label = self.labels[index]
-        image = self.images[index]
-        
-        if self.transform is not None:
-            image = self.transform(image)
+X = torch.div(torch.Tensor(np.array(df.iloc[:, 1:])),255).type(torch.FloatTensor)
+y = torch.Tensor(np.array(df.iloc[:, 0:1].values)).reshape(-1).type(torch.LongTensor)
 
-        return image, label
+batch_size = 64
 
-    def __len__(self):
-        return len(self.images)
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
 
-TRAIN_SIZE = 0.8 
-TEST_SIZE = 1 - TRAIN_SIZE
-BATCH_SIZE = 64
+train_dataset = TensorDataset(X_train, y_train)
+test_dataset = TensorDataset(X_test,y_test)
 
-dataset = FashionMNISTDataset(fashion_mnist_csv)
-
-TRAIN_DATASET_SIZE = int(len(dataset)*TRAIN_SIZE) 
-TEST_DATASET_SIZE = len(dataset) - TRAIN_DATASET_SIZE
-train_set, test_set = random_split(dataset = dataset, lengths= [TRAIN_DATASET_SIZE,TEST_DATASET_SIZE])
-
-train_loader = DataLoader(train_set, BATCH_SIZE, shuffle=True)
-test_loader = DataLoader(test_set, BATCH_SIZE)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 class FashionMNISTNN(nn.Module):
     def __init__(self, input_dim, h1,h2, output_dim):
@@ -97,9 +75,7 @@ for epoch in range(num_epochs):
     epoch_loss = 0
     epoch_accuracy = 0
     for image, label in train_loader:
-        image = image.view(-1, 784)
-        label = label.view(-1)
-        z = model(image.float())
+        z = model(image)
         loss = F.cross_entropy(z, label)
         accuracy = calc_accuracy(z, label)
 
@@ -107,8 +83,8 @@ for epoch in range(num_epochs):
         loss.backward()
         optimizer.step()
 
-        epoch_loss += loss.item() / TRAIN_DATASET_SIZE * BATCH_SIZE
-        epoch_accuracy += accuracy / TRAIN_DATASET_SIZE * BATCH_SIZE
+        epoch_loss += loss.item() / len(train_dataset) * batch_size
+        epoch_accuracy += accuracy / len(train_dataset) * batch_size
     
     loss_history.append(epoch_loss)
     accuracy_history.append(epoch_accuracy)
@@ -128,8 +104,8 @@ for epoch in range(num_epochs):
         loss = F.cross_entropy(z, label)
         accuracy = calc_accuracy(z, label)
 
-        epoch_loss += loss.item() / TEST_DATASET_SIZE * BATCH_SIZE
-        epoch_accuracy += accuracy / TEST_DATASET_SIZE * BATCH_SIZE
+        epoch_loss += loss.item() / len(test_dataset) * batch_size
+        epoch_accuracy += accuracy / len(test_dataset) * batch_size
 
     avg_loss += epoch_loss / num_epochs
     avg_accuracy += epoch_accuracy / num_epochs
